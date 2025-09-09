@@ -1,5 +1,7 @@
 # GPT2-Peenoise
 
+A fine-tuned model from GPT2 that is trained in speaking basic tagalog. A small project to demonstrate AI/LLM training.
+
 #### How to Use:
 
 - Install dependencies from requirements.txt
@@ -18,6 +20,8 @@ You can benchmark the trained model via
 
 Compare the newly fine-tuned model with the original GPT by running
 `python chat_original.py`
+
+Download the pre-finetuned model via [Google Drive](https://drive.google.com/file/d/1u0qJLLemv9-0IV7ooHoJO2X2Z-HKY3Si/view?usp=sharing)
 
 #
 
