@@ -1,5 +1,14 @@
+import sys
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
+from colorama import init
+
+# === Initialize ANSI colors (works on Windows too) ===
+init()
+
+BLUE_BOLD   = "\033[1;34m"
+YELLOW_BOLD = "\033[1;33m"
+RESET       = "\033[0m"
 
 # === Load Fine-tuned GPT-2 Model ===
 save_dir = "fine_tuned_gpt2_tagalog"
@@ -16,9 +25,17 @@ if tokenizer.pad_token is None:
 
 # === Chat Loop ===
 while True:
-    prompt = input("\nYou: ")
+    # user types normally
+    prompt = input("You: ")
     if prompt.lower() in {"exit", "quit"}:
         break
+
+    # remove the plain input line (move up and clear)
+    sys.stdout.write("\033[F\033[K")
+    sys.stdout.flush()
+
+    # reprint in blue-bold
+    print(f"{BLUE_BOLD}You: {prompt}{RESET}")
 
     encoded = tokenizer(prompt, return_tensors="pt", padding=True)
     input_ids = encoded["input_ids"].to(device)
@@ -34,4 +51,7 @@ while True:
         )
 
     response = tokenizer.decode(output[0], skip_special_tokens=True)
-    print("Model:", response[len(prompt):].strip())
+    response_text = response[len(prompt):].strip()
+
+    # model output in yellow-bold
+    print(f"{YELLOW_BOLD}Model: {response_text}{RESET}")
