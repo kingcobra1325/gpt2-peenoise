@@ -4,10 +4,11 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 from torch.optim import AdamW
 from transformers import AutoTokenizer, AutoModelForCausalLM
+from tqdm import tqdm  # <--- import tqdm here
 
 # === Config ===
 MODEL_NAME = "gpt2"  # or "EleutherAI/gpt-neo-125M"
-BATCH_SIZE = 2
+BATCH_SIZE = 8
 EPOCHS = 5
 LR = 1e-5
 MAX_LENGTH = 128
@@ -24,48 +25,59 @@ class TagalogChatDataset(Dataset):
                 item = json.loads(line)
                 prompt = item["prompt"]
                 completion = item["completion"]
-                text = f"{prompt} {completion}"
-                tokenized = tokenizer(
-                    text,
-                    truncation=True,
-                    max_length=MAX_LENGTH,
-                    padding="max_length",
-                    return_tensors="pt"
-                )
-                input_ids = tokenized["input_ids"].squeeze()
-                attention_mask = tokenized["attention_mask"].squeeze()
-                self.samples.append({
-                    "input_ids": input_ids,
-                    "attention_mask": attention_mask,
-                    "labels": input_ids.clone()
-                })
+                self.samples.append((prompt, completion))
+        self.tokenizer = tokenizer
 
     def __len__(self):
         return len(self.samples)
 
     def __getitem__(self, idx):
-        return self.samples[idx]
+        prompt, completion = self.samples[idx]
+        text = f"{prompt} {completion}"
+        tokenized = self.tokenizer(
+            text,
+            truncation=True,
+            max_length=MAX_LENGTH,
+            padding="max_length",
+            return_tensors="pt"
+        )
+        input_ids = tokenized["input_ids"].squeeze()
+        attention_mask = tokenized["attention_mask"].squeeze()
+        return {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "labels": input_ids.clone()
+        }
+
 
 # === Load Model and Tokenizer ===
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+print("Tokenizer loaded.")
+
 tokenizer.pad_token = tokenizer.eos_token
+
 model = AutoModelForCausalLM.from_pretrained(MODEL_NAME).to(DEVICE)
+print("Model loaded and moved to device.")
 
 # === Dataset & Dataloader ===
 dataset = TagalogChatDataset(DATA_PATH, tokenizer)
-print(f"Loaded {len(dataset)} training samples")
+print(f"Dataset created with {len(dataset)} samples.")
+
 loader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
+print("Dataloader created.")
 
 # === Optimizer ===
 optimizer = AdamW(model.parameters(), lr=LR)
+print("Optimizer initialized.")
 
-# === Training Loop ===
+# === Training Loop with tqdm progress bar ===
 model.train()
 start_time = time.time()
 
 for epoch in range(EPOCHS):
     total_loss = 0
-    for batch in loader:
+    progress_bar = tqdm(loader, desc=f"Epoch {epoch + 1}/{EPOCHS}", leave=False)
+    for batch in progress_bar:
         input_ids = batch["input_ids"].to(DEVICE)
         attention_mask = batch["attention_mask"].to(DEVICE)
         labels = batch["labels"].to(DEVICE)
@@ -82,6 +94,8 @@ for epoch in range(EPOCHS):
         optimizer.zero_grad()
 
         total_loss += loss.item()
+        avg_loss = total_loss / (progress_bar.n + 1)
+        progress_bar.set_postfix(loss=f"{avg_loss:.4f}")
 
     print(f"Epoch {epoch + 1} - Loss: {total_loss / len(loader):.4f}")
 
